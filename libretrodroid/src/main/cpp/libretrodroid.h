@@ -128,6 +128,8 @@ public:
     void setRewinding(bool rewinding);
     /** Hidden frames run ahead of the displayed one (0 disables). Ignored for HW-rendered cores. */
     void setRunAhead(unsigned frames);
+    /** Stops emulation and audio while keeping the last frame on screen (in-game menu). */
+    void setPaused(bool paused);
     /** RetroArch slang preset through librashader; empty restores the built-in shaders. Any thread. */
     void setShaderPreset(const std::string& path);
     /**
@@ -212,6 +214,7 @@ private:
 
     Rewind rewind;
     bool rewinding = false;
+    bool paused = false;
     unsigned runAheadFrames = 0;
     bool runAheadActive = false;
     bool suppressVideo = false;

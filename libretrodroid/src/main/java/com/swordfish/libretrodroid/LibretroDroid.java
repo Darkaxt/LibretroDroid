@@ -178,6 +178,9 @@ public class LibretroDroid {
     /** Hidden frames run ahead of the displayed one (0-4, 0 disables). Ignored for HW-rendered cores. */
     public static native void setRunAhead(int frames);
 
+    /** Stops emulation and audio while the last frame stays on screen (in-game menu). */
+    public static native void setPaused(boolean paused);
+
     /**
      * Loads a RetroArch slang preset (.slangp) through librashader; null or "" restores the
      * built-in shaders. A preset that fails to load is logged and the built-in shaders stay.

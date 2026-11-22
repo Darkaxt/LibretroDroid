@@ -503,6 +503,8 @@ void LibretroDroid::destroy() {
     core->retro_unload_game();
     core->retro_deinit();
     frameCount = 0;
+    paused = false;
+    rewinding = false;
     rewind.configure(0, 1);
     runAheadState.clear();
     runAheadState.shrink_to_fit();
@@ -553,13 +555,17 @@ void LibretroDroid::step() {
     Achievements& achievements = Achievements::getInstance();
     achievements.pump(core.get());
     bool rewound = false;
-    if (rewinding && rewind.isEnabled()) {
+    if (paused) {
+        // Menu open: no emulation; the last frame is redrawn below.
+    } else if (rewinding && rewind.isEnabled()) {
         rewound = rewind.stepBack([this](const uint8_t* data, size_t size) {
             return unserializeFrom(data, size);
         });
     }
 
-    if (rewound) {
+    if (paused) {
+        // Nothing to run.
+    } else if (rewound) {
         // Show the restored state: one silent frame, not captured, not counted.
         suppressAudio = true;
         core->retro_run();
@@ -673,6 +679,16 @@ void LibretroDroid::setRewind(size_t budgetBytes, unsigned interval) {
 void LibretroDroid::setRewinding(bool value) {
     std::lock_guard<std::mutex> lock(coreLock);
     rewinding = value;
+}
+
+void LibretroDroid::setPaused(bool value) {
+    std::lock_guard<std::mutex> lock(coreLock);
+    if (paused == value) return;
+    paused = value;
+    if (audio) {
+        if (paused) audio->stop(); else audio->start();
+    }
+    if (!paused && fpsSync) fpsSync->reset();
 }
 
 void LibretroDroid::setRunAhead(unsigned frames) {

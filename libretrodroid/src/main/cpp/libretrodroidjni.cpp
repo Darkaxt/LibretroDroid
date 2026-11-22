@@ -717,6 +717,14 @@ JNIEXPORT void JNICALL Java_com_swordfish_libretrodroid_LibretroDroid_setRewindi
     LibretroDroid::getInstance().setRewinding(rewinding);
 }
 
+JNIEXPORT void JNICALL Java_com_swordfish_libretrodroid_LibretroDroid_setPaused(
+    JNIEnv* env,
+    jclass obj,
+    jboolean paused
+) {
+    LibretroDroid::getInstance().setPaused(paused);
+}
+
 JNIEXPORT void JNICALL Java_com_swordfish_libretrodroid_LibretroDroid_setRunAhead(
     JNIEnv* env,
     jclass obj,
