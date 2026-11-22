@@ -777,7 +777,7 @@ JNIEXPORT void JNICALL Java_com_swordfish_libretrodroid_LibretroDroid_achievemen
         env->DeleteLocalRef(type);
     }
 
-    libretrodroid::Achievements::getInstance().setCallbacks(
+    Achievements::getInstance().setCallbacks(
         [](int64_t id, const std::string& url, const std::string& postData, const std::string& contentType) {
             JNIEnv* e = currentEnv();
             if (e == nullptr || achievementsBridge.listener == nullptr) return;
@@ -808,7 +808,7 @@ JNIEXPORT void JNICALL Java_com_swordfish_libretrodroid_LibretroDroid_achievemen
     jstring romPath
 ) {
     auto path = JniString(env, romPath);
-    libretrodroid::Achievements::getInstance().identify((unsigned) consoleId, path.stdString());
+    Achievements::getInstance().identify((unsigned) consoleId, path.stdString());
 }
 
 JNIEXPORT void JNICALL Java_com_swordfish_libretrodroid_LibretroDroid_achievementsLogin(
@@ -818,7 +818,7 @@ JNIEXPORT void JNICALL Java_com_swordfish_libretrodroid_LibretroDroid_achievemen
     jbyteArray password,
     jbyteArray token
 ) {
-    libretrodroid::Achievements::getInstance().login(
+    Achievements::getInstance().login(
         fromBytes(env, user), fromBytes(env, password), fromBytes(env, token));
 }
 
@@ -829,14 +829,14 @@ JNIEXPORT void JNICALL Java_com_swordfish_libretrodroid_LibretroDroid_achievemen
     jbyteArray body,
     jint httpStatus
 ) {
-    libretrodroid::Achievements::getInstance().onServerResponse((int64_t) id, fromBytes(env, body), httpStatus);
+    Achievements::getInstance().onServerResponse((int64_t) id, fromBytes(env, body), httpStatus);
 }
 
 JNIEXPORT jstring JNICALL Java_com_swordfish_libretrodroid_LibretroDroid_achievementsUserAgentClause(
     JNIEnv* env,
     jclass obj
 ) {
-    return env->NewStringUTF(libretrodroid::Achievements::getInstance().userAgentClause().c_str());
+    return env->NewStringUTF(Achievements::getInstance().userAgentClause().c_str());
 }
 
 JNIEXPORT jlongArray JNICALL Java_com_swordfish_libretrodroid_LibretroDroid_getRuntimeStats(
