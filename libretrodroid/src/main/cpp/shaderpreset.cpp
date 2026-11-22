@@ -119,7 +119,7 @@ bool ShaderPreset::load(const std::string& path) {
 
     filter_chain_gl_opt_t options {};
     options.version = LIBRASHADER_CURRENT_VERSION;
-    options.glsl_version = 300; // GLSL ES 3.00
+    options.glsl_version = 0; // detect from the context (GLSL ES 3.20 on a GLES 3.2 device)
     options.use_dsa = false;
     options.force_no_mipmaps = false;
     options.disable_cache = true;
@@ -186,6 +186,36 @@ bool ShaderPreset::ensureBlitProgram() {
     return true;
 }
 
+void ShaderPreset::logDiagnostics() {
+    GLint cull = glIsEnabled(GL_CULL_FACE), scissor = glIsEnabled(GL_SCISSOR_TEST);
+    GLint stencil = glIsEnabled(GL_STENCIL_TEST), depth = glIsEnabled(GL_DEPTH_TEST), blend = glIsEnabled(GL_BLEND);
+    GLboolean mask[4] = {};
+    glGetBooleanv(GL_COLOR_WRITEMASK, mask);
+    GLint sampler = 0, unit = 0, vao = 0, program = 0;
+    glGetIntegerv(GL_ACTIVE_TEXTURE, &unit);
+    glActiveTexture(GL_TEXTURE0);
+    glGetIntegerv(GL_SAMPLER_BINDING, &sampler);
+    glGetIntegerv(GL_VERTEX_ARRAY_BINDING, &vao);
+    glGetIntegerv(GL_CURRENT_PROGRAM, &program);
+    GLenum glError = glGetError();
+
+    GLuint probe = 0;
+    glGenFramebuffers(1, &probe);
+    glBindFramebuffer(GL_FRAMEBUFFER, probe);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, output, 0);
+    GLenum status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
+    uint8_t center[4] = {}, quarter[4] = {};
+    glReadPixels((GLint) outputWidth / 2, (GLint) outputHeight / 2, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, center);
+    glReadPixels((GLint) outputWidth / 4, (GLint) outputHeight / 4, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, quarter);
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    glDeleteFramebuffers(1, &probe);
+    LOGI("ShaderPreset diag: out=%ux%u fbo=0x%x glError=0x%x cull=%d scissor=%d stencil=%d depth=%d blend=%d "
+         "mask=%d%d%d%d activeUnit=0x%x sampler0=%d vao=%d program=%d center=%u,%u,%u,%u quarter=%u,%u,%u,%u",
+         outputWidth, outputHeight, status, glError, cull, scissor, stencil, depth, blend,
+         mask[0], mask[1], mask[2], mask[3], unit, sampler, vao, program,
+         center[0], center[1], center[2], center[3], quarter[0], quarter[1], quarter[2], quarter[3]);
+}
+
 void ShaderPreset::render(GLuint source, unsigned sourceWidth, unsigned sourceHeight, GLenum sourceFormat,
                           unsigned width, unsigned height,
                           const float* vertices, const float* textureCoordinates) {
@@ -219,6 +249,8 @@ void ShaderPreset::render(GLuint source, unsigned sourceWidth, unsigned sourceHe
                                                           nullptr, nullptr, nullptr);
     lastFrameMicros = nowMicros() - started;
 
+    if (frameCount == DIAGNOSTIC_FRAME) logDiagnostics();
+
     glBindFramebuffer(GL_FRAMEBUFFER, (GLuint) framebuffer);
     glViewport(viewport[0], viewport[1], viewport[2], viewport[3]);
     if (error != nullptr) {
@@ -227,8 +259,14 @@ void ShaderPreset::render(GLuint source, unsigned sourceWidth, unsigned sourceHe
         return;
     }
 
+    // Reset the state librashader's passes may leave behind before drawing to the screen.
     glDisable(GL_BLEND);
     glDisable(GL_SCISSOR_TEST);
+    glDisable(GL_CULL_FACE);
+    glDisable(GL_DEPTH_TEST);
+    glDisable(GL_STENCIL_TEST);
+    glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+    glBindSampler(0, 0);
     glUseProgram(blitProgram);
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     glBindVertexArray(0);

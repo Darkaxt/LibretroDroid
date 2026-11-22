@@ -54,6 +54,9 @@ public:
 
 private:
     bool ensureBlitProgram();
+    /** One-shot: GL state left by the chain and output texture pixels, to logcat. */
+    void logDiagnostics();
+    static constexpr uint64_t DIAGNOSTIC_FRAME = 120;
     void releaseOutput();
 
     void* chain = nullptr; // libra_gl_filter_chain_t
