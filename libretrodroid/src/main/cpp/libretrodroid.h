@@ -128,9 +128,12 @@ public:
     void setRewinding(bool rewinding);
     /** Hidden frames run ahead of the displayed one (0 disables). Ignored for HW-rendered cores. */
     void setRunAhead(unsigned frames);
+    /** RetroArch slang preset through librashader; empty restores the built-in shaders. Any thread. */
+    void setShaderPreset(const std::string& path);
     /**
      * Runtime stats: rewind entries, rewind bytes, last capture us, last step us (emulation only),
-     * run-ahead frames in effect, rewinding (0/1), last rewind encode us (worker thread).
+     * run-ahead frames in effect, rewinding (0/1), last rewind encode us (worker thread),
+     * last shader preset frame us (CPU side, 0 without a preset).
      */
     std::vector<int64_t> getRuntimeStats();
 
@@ -225,6 +228,7 @@ private:
     std::unique_ptr<Video> video;
     SecondarySurface secondarySurface;
     SecondarySurface::Crop frameCrop;
+    std::string shaderPresetPath;
     std::unique_ptr<FPSSync> fpsSync;
     std::unique_ptr<Input> input;
     std::unique_ptr<Rumble> rumble;

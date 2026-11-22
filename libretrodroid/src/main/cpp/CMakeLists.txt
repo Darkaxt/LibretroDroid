@@ -71,6 +71,8 @@ add_library(libretrodroid SHARED
         ${RCHEEVOS_SOURCES}
         input.h
         input.cpp
+        shaderpreset.h
+        shaderpreset.cpp
         shadermanager.h
         shadermanager.cpp
         rumble.h

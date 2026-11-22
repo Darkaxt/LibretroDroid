@@ -725,6 +725,19 @@ JNIEXPORT void JNICALL Java_com_swordfish_libretrodroid_LibretroDroid_setRunAhea
     LibretroDroid::getInstance().setRunAhead(frames > 0 ? (unsigned) frames : 0);
 }
 
+JNIEXPORT void JNICALL Java_com_swordfish_libretrodroid_LibretroDroid_setShaderPreset(
+    JNIEnv* env,
+    jclass obj,
+    jstring path
+) {
+    if (path == nullptr) {
+        LibretroDroid::getInstance().setShaderPreset("");
+        return;
+    }
+    JniString value(env, path);
+    LibretroDroid::getInstance().setShaderPreset(value.stdString());
+}
+
 namespace {
 
 struct AchievementsBridge {

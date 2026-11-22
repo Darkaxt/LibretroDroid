@@ -179,8 +179,14 @@ public class LibretroDroid {
     public static native void setRunAhead(int frames);
 
     /**
+     * Loads a RetroArch slang preset (.slangp) through librashader; null or "" restores the
+     * built-in shaders. A preset that fails to load is logged and the built-in shaders stay.
+     */
+    public static native void setShaderPreset(String path);
+
+    /**
      * [rewind entries, rewind bytes, last capture us, last step us, run-ahead frames in effect,
-     * rewinding 0/1, last rewind encode us (worker thread)].
+     * rewinding 0/1, last rewind encode us (worker thread), last shader preset frame us].
      */
     public static native long[] getRuntimeStats();
 

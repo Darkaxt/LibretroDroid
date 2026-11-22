@@ -27,6 +27,10 @@
 #include "utils/rect.h"
 #include "immersivemode.h"
 #include "videolayout.h"
+#include "shaderpreset.h"
+
+#include <mutex>
+#include <string>
 
 namespace libretrodroid {
 
@@ -76,6 +80,14 @@ public:
     void updateShaderType(ShaderManager::Config shaderConfig);
     void updateCrop(float x0, float y0, float x1, float y1) { videoLayout.updateCrop(x0, y0, x1, y1); }
 
+    /**
+     * Requests a RetroArch slang preset (empty: built-in shaders). Applied on the GL thread at the
+     * next frame; a preset that fails to load leaves the built-in shaders in use.
+     */
+    void setShaderPreset(const std::string& path);
+    /** CPU time of the last librashader frame call, 0 when no preset is active. */
+    uint64_t getShaderPresetMicros() { return preset.isLoaded() ? preset.getLastFrameMicros() : 0; }
+
     /** Texture holding the latest core frame (software upload or hardware framebuffer). */
     GLuint getFrameTexture() { return (GLuint) renderer->getTexture(); }
 
@@ -99,6 +111,8 @@ private:
     float getTextureHeight();
 
     void initializeRenderer(RenderingOptions renderingOptions);
+    void applyShaderPreset();
+    void renderPreset();
 
 private:
     ShaderManager::Config requestedShaderConfig = ShaderManager::Config {
@@ -116,6 +130,11 @@ private:
     VideoLayout videoLayout;
 
     Renderer* renderer;
+
+    int pixelFormat = 0;
+    ShaderPreset preset;
+    std::mutex presetLock;
+    std::optional<std::string> pendingPreset;
 };
 
 }

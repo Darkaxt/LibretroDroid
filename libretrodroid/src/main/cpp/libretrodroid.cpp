@@ -278,6 +278,7 @@ void LibretroDroid::onSurfaceCreated() {
 
     video = std::unique_ptr<Video>(newVideo);
     video->updateCrop(frameCrop.x0, frameCrop.y0, frameCrop.x1, frameCrop.y1);
+    if (!shaderPresetPath.empty()) video->setShaderPreset(shaderPresetPath);
     secondarySurface.onContextLost();
 
     if (Environment::getInstance().getHwContextReset() != nullptr) {
@@ -658,6 +659,12 @@ bool LibretroDroid::unserializeFrom(const uint8_t* data, size_t size) {
     return core->retro_unserialize(data, size);
 }
 
+void LibretroDroid::setShaderPreset(const std::string& path) {
+    std::lock_guard<std::mutex> lock(coreLock);
+    shaderPresetPath = path;
+    if (video) video->setShaderPreset(path);
+}
+
 void LibretroDroid::setRewind(size_t budgetBytes, unsigned interval) {
     std::lock_guard<std::mutex> lock(coreLock);
     rewind.configure(budgetBytes, interval);
@@ -683,6 +690,7 @@ std::vector<int64_t> LibretroDroid::getRuntimeStats() {
         (int64_t) (runAheadActive ? runAheadFrames : 0),
         (int64_t) (rewinding ? 1 : 0),
         (int64_t) rewind.getLastEncodeMicros(),
+        (int64_t) (video ? video->getShaderPresetMicros() : 0),
     };
 }
 

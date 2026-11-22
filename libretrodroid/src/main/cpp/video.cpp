@@ -15,6 +15,7 @@
  *     along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+#include <GLES3/gl3.h>
 #include <GLES2/gl2.h>
 #include <EGL/egl.h>
 #include <cstdlib>
@@ -22,6 +23,9 @@
 #include <cmath>
 #include <utility>
 #include <sstream>
+#include <algorithm>
+
+#include "../../libretro-common/include/libretro.h"
 
 #include "log.h"
 
@@ -158,6 +162,12 @@ void Video::renderFrame() {
         );
     }
 
+    applyShaderPreset();
+    if (preset.isLoaded()) {
+        renderPreset();
+        return;
+    }
+
     updateProgram();
     for (int i = 0; i < shadersChain.size(); ++i) {
         auto shader = shadersChain[i];
@@ -211,6 +221,58 @@ void Video::renderFrame() {
 
         glUseProgram(0);
     }
+}
+
+void Video::setShaderPreset(const std::string& path) {
+    std::lock_guard<std::mutex> lock(presetLock);
+    pendingPreset = path;
+    isDirty = true;
+}
+
+void Video::applyShaderPreset() {
+    std::optional<std::string> path;
+    {
+        std::lock_guard<std::mutex> lock(presetLock);
+        path.swap(pendingPreset);
+    }
+    if (!path.has_value()) return;
+    if (path->empty()) {
+        preset.unload();
+    } else if (!preset.load(*path)) {
+        preset.unload();
+        LOGE("Shader preset %s not loaded; using the built-in shaders", path->c_str());
+    }
+}
+
+void Video::renderPreset() {
+    unsigned sourceWidth = renderer->lastFrameSize.first;
+    unsigned sourceHeight = renderer->lastFrameSize.second;
+    if (sourceWidth == 0 || sourceHeight == 0) return;
+
+    // Output resolution: the on-screen foreground size, extended over the cropped-away part of
+    // the frame so the shown region maps 1:1 to screen pixels.
+    auto& bounds = videoLayout.getRelativeForegroundBounds();
+    auto& coordinates = videoLayout.getTextureCoordinates();
+    float u0 = coordinates[0], u1 = coordinates[0], v0 = coordinates[1], v1 = coordinates[1];
+    for (size_t i = 0; i < coordinates.size(); i += 2) {
+        u0 = std::min(u0, coordinates[i]);
+        u1 = std::max(u1, coordinates[i]);
+        v0 = std::min(v0, coordinates[i + 1]);
+        v1 = std::max(v1, coordinates[i + 1]);
+    }
+    float shownWidth = (bounds[2] - bounds[0]) * (float) videoLayout.getScreenWidth();
+    float shownHeight = (bounds[3] - bounds[1]) * (float) videoLayout.getScreenHeight();
+    auto outputWidth = (unsigned) std::lround(shownWidth / std::max(u1 - u0, 0.01F));
+    auto outputHeight = (unsigned) std::lround(shownHeight / std::max(v1 - v0, 0.01F));
+    outputWidth = std::min(std::max(outputWidth, sourceWidth), 4096u);
+    outputHeight = std::min(std::max(outputHeight, sourceHeight), 4096u);
+
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    glViewport(0, 0, videoLayout.getScreenWidth(), videoLayout.getScreenHeight());
+    GLenum format = pixelFormat == RETRO_PIXEL_FORMAT_XRGB8888 ? GL_RGBA8 : GL_RGB565;
+    preset.render((GLuint) renderer->getTexture(), sourceWidth, sourceHeight, format,
+                  outputWidth, outputHeight,
+                  videoLayout.getForegroundVertices().data(), coordinates.data());
 }
 
 float Video::getScreenDensity() {
@@ -308,6 +370,7 @@ void Video::initializeRenderer(RenderingOptions renderingOptions) {
         }
     }
 
+    pixelFormat = renderingOptions.pixelFormat;
     renderer->setPixelFormat(renderingOptions.pixelFormat);
     updateProgram();
 }
