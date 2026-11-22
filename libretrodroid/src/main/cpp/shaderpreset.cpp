@@ -152,6 +152,14 @@ void ShaderPreset::unload() {
     releaseOutput();
 }
 
+void ShaderPreset::abandon() {
+    chain = nullptr;
+    output = 0;
+    outputWidth = 0;
+    outputHeight = 0;
+    blitProgram = 0;
+}
+
 void ShaderPreset::releaseOutput() {
     if (output != 0) {
         glDeleteTextures(1, &output);

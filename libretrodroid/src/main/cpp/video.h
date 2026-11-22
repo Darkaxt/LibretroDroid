@@ -90,6 +90,8 @@ public:
 
     /** Texture holding the latest core frame (software upload or hardware framebuffer). */
     GLuint getFrameTexture() { return (GLuint) renderer->getTexture(); }
+    std::pair<unsigned, unsigned> getFrameSize() { return renderer->lastFrameSize; }
+    GLenum getFrameFormat();
 
     void renderFrame();
 

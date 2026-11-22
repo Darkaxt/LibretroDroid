@@ -22,7 +22,11 @@
 #include <GLES2/gl2.h>
 #include <android/native_window.h>
 #include <mutex>
+#include <optional>
+#include <string>
 #include <utility>
+
+#include "shaderpreset.h"
 
 namespace libretrodroid {
 
@@ -53,8 +57,18 @@ public:
 
     bool isActive();
 
-    /** Draws the crop of texture; frameAspect is the display aspect ratio of the whole frame. */
-    void render(GLuint texture, bool bottomLeftOrigin, float frameAspect);
+    /** Slang preset for this surface ("" for none); loaded on the GL thread at the next render. */
+    void setShaderPreset(const std::string& path);
+
+    /** Last preset chain cost in microseconds, 0 without a preset. */
+    uint64_t getShaderPresetMicros();
+
+    /**
+     * Draws the crop of texture (sourceWidth x sourceHeight, sourceFormat); frameAspect is the
+     * display aspect ratio of the whole frame.
+     */
+    void render(GLuint texture, unsigned sourceWidth, unsigned sourceHeight, GLenum sourceFormat,
+                bool bottomLeftOrigin, float frameAspect);
 
     /** The GL context was recreated: forget GL objects and the EGL surface (rebuilt lazily). */
     void onContextLost();
@@ -80,6 +94,10 @@ private:
     GLint positionHandle = -1;
     GLint coordinateHandle = -1;
     GLint textureHandle = -1;
+
+    ShaderPreset preset;
+    std::string presetPath;
+    std::optional<std::string> pendingPreset;
 
     Crop crop;
     // Letterboxed content bounds on the secondary surface, normalized 0..1 (y downwards).

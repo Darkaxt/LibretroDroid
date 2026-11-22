@@ -591,8 +591,12 @@ void LibretroDroid::step() {
     }
 
     if (video) {
+        auto [frameWidth, frameHeight] = video->getFrameSize();
         secondarySurface.render(
             video->getFrameTexture(),
+            frameWidth,
+            frameHeight,
+            video->getFrameFormat(),
             Environment::getInstance().isBottomLeftOrigin(),
             getAspectRatio()
         );
@@ -669,6 +673,7 @@ void LibretroDroid::setShaderPreset(const std::string& path) {
     std::lock_guard<std::mutex> lock(coreLock);
     shaderPresetPath = path;
     if (video) video->setShaderPreset(path);
+    secondarySurface.setShaderPreset(path);
 }
 
 void LibretroDroid::setRewind(size_t budgetBytes, unsigned interval) {
@@ -707,6 +712,7 @@ std::vector<int64_t> LibretroDroid::getRuntimeStats() {
         (int64_t) (rewinding ? 1 : 0),
         (int64_t) rewind.getLastEncodeMicros(),
         (int64_t) (video ? video->getShaderPresetMicros() : 0),
+        (int64_t) secondarySurface.getShaderPresetMicros(),
     };
 }
 

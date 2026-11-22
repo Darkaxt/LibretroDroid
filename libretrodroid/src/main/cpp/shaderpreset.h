@@ -40,6 +40,11 @@ public:
     /** Loads the preset at path; on failure the previous chain is kept and false is returned. */
     bool load(const std::string& path);
     void unload();
+    /**
+     * The GL context is gone: forget the chain and GL names without any GL call, so nothing in a new
+     * context is deleted by mistake. The chain's host memory is leaked; context loss is rare.
+     */
+    void abandon();
     bool isLoaded() const { return chain != nullptr; }
 
     /**

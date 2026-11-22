@@ -269,10 +269,13 @@ void Video::renderPreset() {
 
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
     glViewport(0, 0, videoLayout.getScreenWidth(), videoLayout.getScreenHeight());
-    GLenum format = pixelFormat == RETRO_PIXEL_FORMAT_XRGB8888 ? GL_RGBA8 : GL_RGB565;
-    preset.render((GLuint) renderer->getTexture(), sourceWidth, sourceHeight, format,
+    preset.render((GLuint) renderer->getTexture(), sourceWidth, sourceHeight, getFrameFormat(),
                   outputWidth, outputHeight,
                   videoLayout.getForegroundVertices().data(), coordinates.data());
+}
+
+GLenum Video::getFrameFormat() {
+    return pixelFormat == RETRO_PIXEL_FORMAT_XRGB8888 ? GL_RGBA8 : GL_RGB565;
 }
 
 float Video::getScreenDensity() {

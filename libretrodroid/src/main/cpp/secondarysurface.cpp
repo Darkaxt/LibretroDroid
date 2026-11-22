@@ -17,6 +17,9 @@
 
 #include "secondarysurface.h"
 
+#include <algorithm>
+#include <cmath>
+
 #include "log.h"
 
 namespace libretrodroid {
@@ -147,7 +150,19 @@ bool SecondarySurface::ensureProgramLocked() {
     return true;
 }
 
-void SecondarySurface::render(GLuint texture, bool bottomLeftOrigin, float frameAspect) {
+void SecondarySurface::setShaderPreset(const std::string& path) {
+    std::lock_guard<std::mutex> lock(mutex);
+    presetPath = path;
+    pendingPreset = path;
+}
+
+uint64_t SecondarySurface::getShaderPresetMicros() {
+    std::lock_guard<std::mutex> lock(mutex);
+    return preset.isLoaded() ? preset.getLastFrameMicros() : 0;
+}
+
+void SecondarySurface::render(GLuint texture, unsigned sourceWidth, unsigned sourceHeight,
+                              GLenum sourceFormat, bool bottomLeftOrigin, float frameAspect) {
     std::lock_guard<std::mutex> lock(mutex);
     if (window == nullptr || texture == 0) return;
 
@@ -216,6 +231,34 @@ void SecondarySurface::render(GLuint texture, bool bottomLeftOrigin, float frame
         glClearColor(0.0F, 0.0F, 0.0F, 1.0F);
         glClear(GL_COLOR_BUFFER_BIT);
 
+        if (pendingPreset.has_value()) {
+            std::string path;
+            path.swap(*pendingPreset);
+            pendingPreset.reset();
+            if (path.empty()) {
+                preset.unload();
+            } else if (!preset.load(path)) {
+                preset.unload();
+                LOGE("SecondarySurface: shader preset %s not loaded; drawing unshaded", path.c_str());
+            }
+        }
+
+        if (preset.isLoaded() && sourceWidth > 0 && sourceHeight > 0) {
+            // As on the main display: the chain covers the whole frame at a size where the shown crop
+            // maps 1:1 to surface pixels; the crop coordinates then select the shown part.
+            float shownWidth = scaleX * (float) width;
+            float shownHeight = scaleY * (float) height;
+            auto outputWidth = (unsigned) std::lround(shownWidth / std::max(cropWidth, 0.01F));
+            auto outputHeight = (unsigned) std::lround(shownHeight / std::max(cropHeight, 0.01F));
+            outputWidth = std::min(std::max(outputWidth, sourceWidth), 4096u);
+            outputHeight = std::min(std::max(outputHeight, sourceHeight), 4096u);
+            preset.render(texture, sourceWidth, sourceHeight, sourceFormat, outputWidth, outputHeight,
+                          vertices, coordinates);
+            eglSwapBuffers(display, surface);
+            eglMakeCurrent(display, mainDraw, mainRead, context);
+            return;
+        }
+
         glUseProgram(program);
         glVertexAttribPointer(positionHandle, 2, GL_FLOAT, GL_FALSE, 0, vertices);
         glEnableVertexAttribArray(positionHandle);
@@ -239,6 +282,8 @@ void SecondarySurface::render(GLuint texture, bool bottomLeftOrigin, float frame
 void SecondarySurface::onContextLost() {
     std::lock_guard<std::mutex> lock(mutex);
     program = 0;
+    preset.abandon();
+    if (!presetPath.empty()) pendingPreset = presetPath;
     destroySurfaceLocked();
     windowChanged = true;
 }
