@@ -70,6 +70,10 @@ public:
     std::pair<int8_t*, size_t> serializeState();
     bool unserializeState(int8_t *data, size_t size);
 
+    size_t readMemory(size_t address, uint8_t* dest, size_t length);
+    std::vector<libretrodroid::MemoryMap::Region> getMemoryRegions();
+    uint64_t getFrameCount();
+
     std::pair<int8_t *, size_t> serializeSRAM();
     jboolean unserializeSRAM(int8_t *data, size_t size);
 
@@ -157,6 +161,7 @@ protected:
 
 private:
     unsigned int frameSpeed = 1;
+    uint64_t frameCount = 0;
     bool audioEnabled = true;
     bool preferLowLatencyAudio = false;
     bool rumbleEnabled = false;

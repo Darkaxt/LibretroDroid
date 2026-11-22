@@ -56,6 +56,8 @@ add_library(libretrodroid SHARED
         fpssync.cpp
         environment.h
         environment.cpp
+        memorymap.h
+        memorymap.cpp
         input.h
         input.cpp
         shadermanager.h

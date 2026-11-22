@@ -23,6 +23,8 @@
 #include <utility>
 #include <vector>
 #include <unordered_set>
+#include <algorithm>
+#include <cstring>
 
 #include "libretrodroid.h"
 #include "utils/libretrodroidexception.h"
@@ -169,6 +171,42 @@ JNIEXPORT jboolean JNICALL LibretroDroid::unserializeSRAM(int8_t* data, size_t s
     memcpy(sramState, data, size);
 
     return true;
+}
+
+size_t LibretroDroid::readMemory(size_t address, uint8_t* dest, size_t length) {
+    std::lock_guard<std::mutex> lock(coreLock);
+    if (core == nullptr) return 0;
+
+    const libretrodroid::MemoryMap& map = Environment::getInstance().getMemoryMap();
+    if (map.hasDescriptors()) {
+        return map.read(address, dest, length);
+    }
+
+    // Cores without a memory map: expose SYSTEM_RAM at bus address 0.
+    auto* ram = static_cast<uint8_t*>(core->retro_get_memory_data(RETRO_MEMORY_SYSTEM_RAM));
+    size_t size = core->retro_get_memory_size(RETRO_MEMORY_SYSTEM_RAM);
+    if (ram == nullptr || address >= size) return 0;
+    size_t count = std::min(length, size - address);
+    std::memcpy(dest, ram + address, count);
+    return count;
+}
+
+std::vector<libretrodroid::MemoryMap::Region> LibretroDroid::getMemoryRegions() {
+    std::lock_guard<std::mutex> lock(coreLock);
+    if (core == nullptr) return {};
+
+    const libretrodroid::MemoryMap& map = Environment::getInstance().getMemoryMap();
+    if (map.hasDescriptors()) return map.getRegions();
+
+    auto* ram = static_cast<uint8_t*>(core->retro_get_memory_data(RETRO_MEMORY_SYSTEM_RAM));
+    size_t size = core->retro_get_memory_size(RETRO_MEMORY_SYSTEM_RAM);
+    if (ram == nullptr || size == 0) return {};
+    return { libretrodroid::MemoryMap::Region { RETRO_MEMDESC_SYSTEM_RAM, ram, 0, 0, size } };
+}
+
+uint64_t LibretroDroid::getFrameCount() {
+    std::lock_guard<std::mutex> lock(coreLock);
+    return frameCount;
 }
 
 std::pair<int8_t*, size_t> LibretroDroid::serializeSRAM() {
@@ -415,6 +453,7 @@ void LibretroDroid::destroy() {
 
     core->retro_unload_game();
     core->retro_deinit();
+    frameCount = 0;
 
     video = nullptr;
     core = nullptr;
@@ -456,8 +495,10 @@ void LibretroDroid::step() {
         frames = std::min(requestedFrames, 2u);
     }
 
-    for (size_t i = 0; i < frames * frameSpeed; i++)
+    for (size_t i = 0; i < frames * frameSpeed; i++) {
         core->retro_run();
+        frameCount++;
+    }
 
     if (video && !video->rendersInVideoCallback()) {
         video->renderFrame();

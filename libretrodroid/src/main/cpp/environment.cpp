@@ -43,6 +43,7 @@ void Environment::initialize(
 }
 
 void Environment::deinitialize() {
+    memoryMap.clear();
     callback_get_current_framebuffer = nullptr;
     hw_context_reset = nullptr;
     hw_context_destroy = nullptr;
@@ -330,6 +331,11 @@ bool Environment::handle_callback_environment(unsigned cmd, void *data) {
         case RETRO_ENVIRONMENT_GET_VFS_INTERFACE:
             LOGD("Called RETRO_ENVIRONMENT_GET_VFS_INTERFACE");
             return environment_handle_get_vfs_interface(static_cast<struct retro_vfs_interface_info*>(data));
+
+        case RETRO_ENVIRONMENT_SET_MEMORY_MAPS:
+            LOGD("Called RETRO_ENVIRONMENT_SET_MEMORY_MAPS");
+            memoryMap.set(static_cast<const struct retro_memory_map*>(data));
+            return true;
 
         case RETRO_ENVIRONMENT_GET_MICROPHONE_INTERFACE:
             LOGD("Called RETRO_ENVIRONMENT_GET_MICROPHONE_INTERFACE");

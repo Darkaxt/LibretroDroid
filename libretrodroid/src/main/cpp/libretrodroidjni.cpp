@@ -606,6 +606,52 @@ JNIEXPORT void JNICALL Java_com_swordfish_libretrodroid_LibretroDroid_refreshAsp
     LibretroDroid::getInstance().refreshAspectRatio();
 }
 
+JNIEXPORT jint JNICALL Java_com_swordfish_libretrodroid_LibretroDroid_readMemory(
+    JNIEnv* env,
+    jclass obj,
+    jlong address,
+    jbyteArray dest,
+    jint offset,
+    jint length
+) {
+    jsize capacity = env->GetArrayLength(dest);
+    if (address < 0 || offset < 0 || length < 0 || offset > capacity || length > capacity - offset) {
+        return -1;
+    }
+    if (length == 0) return 0;
+
+    std::vector<uint8_t> buffer(length);
+    size_t copied = LibretroDroid::getInstance().readMemory((size_t) address, buffer.data(), length);
+    if (copied > 0) {
+        env->SetByteArrayRegion(dest, offset, (jsize) copied, (const jbyte*) buffer.data());
+    }
+    return (jint) copied;
+}
+
+JNIEXPORT jlongArray JNICALL Java_com_swordfish_libretrodroid_LibretroDroid_getMemoryRegions(
+    JNIEnv* env,
+    jclass obj
+) {
+    auto regions = LibretroDroid::getInstance().getMemoryRegions();
+    std::vector<jlong> values;
+    values.reserve(regions.size() * 3);
+    for (const auto& region : regions) {
+        values.push_back((jlong) region.start);
+        values.push_back((jlong) region.len);
+        values.push_back((jlong) region.flags);
+    }
+    jlongArray result = env->NewLongArray((jsize) values.size());
+    env->SetLongArrayRegion(result, 0, (jsize) values.size(), values.data());
+    return result;
+}
+
+JNIEXPORT jlong JNICALL Java_com_swordfish_libretrodroid_LibretroDroid_getFrameCount(
+    JNIEnv* env,
+    jclass obj
+) {
+    return (jlong) LibretroDroid::getInstance().getFrameCount();
+}
+
 }
 
 }

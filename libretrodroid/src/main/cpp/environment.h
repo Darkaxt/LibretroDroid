@@ -31,6 +31,7 @@
 #include "../../libretro-common/include/libretro.h"
 #include "log.h"
 #include "rumblestate.h"
+#include "memorymap.h"
 
 class Environment {
 public:
@@ -108,6 +109,8 @@ public:
 
     const std::vector<std::vector<struct Controller>> &getControllers() const;
 
+    const libretrodroid::MemoryMap& getMemoryMap() const { return memoryMap; }
+
 private:
     bool environment_handle_set_variables(const struct retro_variable* received);
     bool environment_handle_get_variable(struct retro_variable* requested);
@@ -117,6 +120,7 @@ private:
     bool environment_handle_get_microphone_interface(struct retro_microphone_interface* microphone_interface);
 
 private:
+    libretrodroid::MemoryMap memoryMap;
     retro_hw_context_reset_t hw_context_reset = nullptr;
     retro_hw_context_reset_t hw_context_destroy = nullptr;
     struct retro_disk_control_callback *retro_disk_control_callback = nullptr;

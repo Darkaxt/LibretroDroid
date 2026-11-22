@@ -139,6 +139,19 @@ public class LibretroDroid {
 
     public static native void refreshAspectRatio();
 
+    /**
+     * Copies core memory at a 32-bit bus address (RETRO_ENVIRONMENT_SET_MEMORY_MAPS semantics, or
+     * SYSTEM_RAM at address 0 for cores without a map). Runs between frames under the core lock.
+     * Returns the number of bytes copied (stops at the first unmapped byte), or -1 for invalid arguments.
+     */
+    public static native int readMemory(long address, byte[] dest, int offset, int length);
+
+    /** Flattened (start, length, flags) triples describing readable memory regions. */
+    public static native long[] getMemoryRegions();
+
+    /** Number of retro_run() calls since the game was loaded. */
+    public static native long getFrameCount();
+
     public static native Controller[][] getControllers();
     public static native void setControllerType(int port, int type);
 }
