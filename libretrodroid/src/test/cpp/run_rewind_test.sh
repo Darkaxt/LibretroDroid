@@ -20,6 +20,6 @@ run() {
 }
 
 run "Compile Rewind host test" "$gxx" -std=c++17 -O2 -Wall -Wextra -pthread \
-    -Izlibstub -I../../main/cpp \
+    -Izlibstub -Iandroidstub -I../../main/cpp \
     rewind_test.cpp ../../main/cpp/rewind.cpp -o "$scratch/rewind_test.exe"
 run "Run Rewind host test" "$scratch/rewind_test.exe"
