@@ -110,6 +110,10 @@ public:
     const std::vector<std::vector<struct Controller>> &getControllers() const;
 
     const libretrodroid::MemoryMap& getMemoryMap() const { return memoryMap; }
+    /** The core's descriptors as published (for rcheevos), or nullptr when the core set none. */
+    const struct retro_memory_map* getRawMemoryMap() const {
+        return rawDescriptors.empty() ? nullptr : &rawMemoryMap;
+    }
 
 private:
     bool environment_handle_set_variables(const struct retro_variable* received);
@@ -121,6 +125,8 @@ private:
 
 private:
     libretrodroid::MemoryMap memoryMap;
+    std::vector<struct retro_memory_descriptor> rawDescriptors;
+    struct retro_memory_map rawMemoryMap {};
     retro_hw_context_reset_t hw_context_reset = nullptr;
     retro_hw_context_reset_t hw_context_destroy = nullptr;
     struct retro_disk_control_callback *retro_disk_control_callback = nullptr;

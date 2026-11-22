@@ -12,6 +12,10 @@ include_directories (${OBOE_DIR}/include)
 include_directories (${OBOE_DIR}/src)
 
 include_directories("libretro/libretro-common/include")
+include_directories("rcheevos/include")
+
+# rcheevos (RetroAchievements), vendored v12.5.0, MIT
+file(GLOB RCHEEVOS_SOURCES rcheevos/src/*.c rcheevos/src/*/*.c)
 
 set (LIBRETRO_COMMON
         libretro/libretro-common/vfs/vfs_implementation.c
@@ -62,6 +66,9 @@ add_library(libretrodroid SHARED
         secondarysurface.cpp
         rewind.h
         rewind.cpp
+        achievements.h
+        achievements.cpp
+        ${RCHEEVOS_SOURCES}
         input.h
         input.cpp
         shadermanager.h

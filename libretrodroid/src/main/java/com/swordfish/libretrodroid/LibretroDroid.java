@@ -184,6 +184,29 @@ public class LibretroDroid {
      */
     public static native long[] getRuntimeStats();
 
+    /**
+     * RetroAchievements bridge. Callbacks arrive on the emulation thread and must not block:
+     * perform HTTP elsewhere and answer with {@link #achievementsServerResponse}. Strings are UTF-8.
+     */
+    public interface AchievementsListener {
+        void onServerCall(long id, byte[] url, byte[] postData, byte[] contentType);
+
+        /** event: 0 log, 1 hash, 2 identified, 3 login, 4 game loaded, 5 achievement, 6 server error. */
+        void onEvent(int event, long value, byte[] text);
+    }
+
+    public static native void achievementsSetListener(AchievementsListener listener);
+
+    /** Hashes the ROM on the calling thread, then resolves it to a game id (no login needed). */
+    public static native void achievementsIdentify(int consoleId, String romPath);
+
+    /** A non-empty token takes precedence over the password. */
+    public static native void achievementsLogin(byte[] user, byte[] password, byte[] token);
+
+    public static native void achievementsServerResponse(long id, byte[] body, int httpStatus);
+
+    public static native String achievementsUserAgentClause();
+
     public static native Controller[][] getControllers();
     public static native void setControllerType(int port, int type);
 }

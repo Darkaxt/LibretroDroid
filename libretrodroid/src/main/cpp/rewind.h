@@ -29,8 +29,9 @@ namespace libretrodroid {
 
 /**
  * Byte-budgeted rewind buffer. The newest state is kept whole; each older state is stored as the
- * zlib-compressed XOR delta to the state captured after it, so stepping back costs one
- * decompression and one XOR. The oldest deltas are dropped when the budget is exceeded.
+ * sparse XOR delta (changed 64-bit word runs only, zlib level 1) to the state captured after it,
+ * so stepping back costs one small decompression and an XOR of the changed words. The oldest
+ * deltas are dropped when the budget is exceeded.
  *
  * Not thread-safe: used only from the emulation (GL) thread under the core lock.
  */
@@ -59,10 +60,19 @@ private:
     unsigned interval = 1;
     unsigned framesSinceCapture = 0;
 
-    std::vector<uint8_t> current;
-    std::vector<uint8_t> scratch;
+    struct Delta {
+        size_t rawBytes = 0;
+        std::vector<uint8_t> packed;
+    };
+
+    bool capture(std::vector<uint64_t>& target, const Serialize& serialize);
+
+    size_t stateSize = 0;
+    std::vector<uint64_t> current;
+    std::vector<uint64_t> scratch;
+    std::vector<uint64_t> sparse;
     std::vector<uint8_t> packed;
-    std::deque<std::vector<uint8_t>> deltas;
+    std::deque<Delta> deltas;
     size_t used = 0;
     uint64_t lastCaptureMicros = 0;
 };

@@ -39,6 +39,7 @@
 #include "input.h"
 #include "rumble.h"
 #include "rewind.h"
+#include "achievements.h"
 #include "secondarysurface.h"
 #include "shadermanager.h"
 #include "utils/javautils.h"

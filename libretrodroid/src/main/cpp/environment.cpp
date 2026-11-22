@@ -44,6 +44,8 @@ void Environment::initialize(
 
 void Environment::deinitialize() {
     memoryMap.clear();
+    rawDescriptors.clear();
+    rawMemoryMap = {};
     callback_get_current_framebuffer = nullptr;
     hw_context_reset = nullptr;
     hw_context_destroy = nullptr;
@@ -335,6 +337,12 @@ bool Environment::handle_callback_environment(unsigned cmd, void *data) {
         case RETRO_ENVIRONMENT_SET_MEMORY_MAPS:
             LOGD("Called RETRO_ENVIRONMENT_SET_MEMORY_MAPS");
             memoryMap.set(static_cast<const struct retro_memory_map*>(data));
+            {
+                auto* map = static_cast<const struct retro_memory_map*>(data);
+                rawDescriptors.assign(map->descriptors, map->descriptors + map->num_descriptors);
+                rawMemoryMap.descriptors = rawDescriptors.data();
+                rawMemoryMap.num_descriptors = (unsigned) rawDescriptors.size();
+            }
             return true;
 
         case RETRO_ENVIRONMENT_GET_MICROPHONE_INTERFACE:

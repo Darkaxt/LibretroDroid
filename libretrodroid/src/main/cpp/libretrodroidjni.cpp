@@ -725,6 +725,120 @@ JNIEXPORT void JNICALL Java_com_swordfish_libretrodroid_LibretroDroid_setRunAhea
     LibretroDroid::getInstance().setRunAhead(frames > 0 ? (unsigned) frames : 0);
 }
 
+namespace {
+
+struct AchievementsBridge {
+    JavaVM* vm = nullptr;
+    jobject listener = nullptr;
+    jmethodID onServerCall = nullptr;
+    jmethodID onEvent = nullptr;
+};
+
+AchievementsBridge achievementsBridge;
+
+JNIEnv* currentEnv() {
+    JNIEnv* env = nullptr;
+    if (achievementsBridge.vm == nullptr) return nullptr;
+    if (achievementsBridge.vm->GetEnv(reinterpret_cast<void**>(&env), JNI_VERSION_1_6) == JNI_OK) return env;
+    // Callbacks run on the emulation (GLSurfaceView) thread, which is always a Java thread.
+    return nullptr;
+}
+
+jbyteArray toBytes(JNIEnv* env, const std::string& text) {
+    jbyteArray array = env->NewByteArray((jsize) text.size());
+    if (array != nullptr) {
+        env->SetByteArrayRegion(array, 0, (jsize) text.size(), reinterpret_cast<const jbyte*>(text.data()));
+    }
+    return array;
+}
+
+std::string fromBytes(JNIEnv* env, jbyteArray array) {
+    if (array == nullptr) return {};
+    jsize length = env->GetArrayLength(array);
+    std::string text((size_t) length, char(0));
+    env->GetByteArrayRegion(array, 0, length, reinterpret_cast<jbyte*>(text.data()));
+    return text;
+}
+
+}
+
+JNIEXPORT void JNICALL Java_com_swordfish_libretrodroid_LibretroDroid_achievementsSetListener(
+    JNIEnv* env,
+    jclass obj,
+    jobject listener
+) {
+    env->GetJavaVM(&achievementsBridge.vm);
+    if (achievementsBridge.listener != nullptr) env->DeleteGlobalRef(achievementsBridge.listener);
+    achievementsBridge.listener = listener != nullptr ? env->NewGlobalRef(listener) : nullptr;
+    if (listener != nullptr) {
+        jclass type = env->GetObjectClass(listener);
+        achievementsBridge.onServerCall = env->GetMethodID(type, "onServerCall", "(J[B[B[B)V");
+        achievementsBridge.onEvent = env->GetMethodID(type, "onEvent", "(IJ[B)V");
+        env->DeleteLocalRef(type);
+    }
+
+    libretrodroid::Achievements::getInstance().setCallbacks(
+        [](int64_t id, const std::string& url, const std::string& postData, const std::string& contentType) {
+            JNIEnv* e = currentEnv();
+            if (e == nullptr || achievementsBridge.listener == nullptr) return;
+            jbyteArray u = toBytes(e, url);
+            jbyteArray p = toBytes(e, postData);
+            jbyteArray c = toBytes(e, contentType);
+            e->CallVoidMethod(achievementsBridge.listener, achievementsBridge.onServerCall, (jlong) id, u, p, c);
+            if (e->ExceptionCheck()) e->ExceptionClear();
+            e->DeleteLocalRef(u);
+            e->DeleteLocalRef(p);
+            e->DeleteLocalRef(c);
+        },
+        [](int event, int64_t value, const std::string& text) {
+            JNIEnv* e = currentEnv();
+            if (e == nullptr || achievementsBridge.listener == nullptr) return;
+            jbyteArray t = toBytes(e, text);
+            e->CallVoidMethod(achievementsBridge.listener, achievementsBridge.onEvent, (jint) event, (jlong) value, t);
+            if (e->ExceptionCheck()) e->ExceptionClear();
+            e->DeleteLocalRef(t);
+        }
+    );
+}
+
+JNIEXPORT void JNICALL Java_com_swordfish_libretrodroid_LibretroDroid_achievementsIdentify(
+    JNIEnv* env,
+    jclass obj,
+    jint consoleId,
+    jstring romPath
+) {
+    auto path = JniString(env, romPath);
+    libretrodroid::Achievements::getInstance().identify((unsigned) consoleId, path.stdString());
+}
+
+JNIEXPORT void JNICALL Java_com_swordfish_libretrodroid_LibretroDroid_achievementsLogin(
+    JNIEnv* env,
+    jclass obj,
+    jbyteArray user,
+    jbyteArray password,
+    jbyteArray token
+) {
+    libretrodroid::Achievements::getInstance().login(
+        fromBytes(env, user), fromBytes(env, password), fromBytes(env, token));
+}
+
+JNIEXPORT void JNICALL Java_com_swordfish_libretrodroid_LibretroDroid_achievementsServerResponse(
+    JNIEnv* env,
+    jclass obj,
+    jlong id,
+    jbyteArray body,
+    jint httpStatus
+) {
+    libretrodroid::Achievements::getInstance().onServerResponse((int64_t) id, fromBytes(env, body), httpStatus);
+}
+
+JNIEXPORT jstring JNICALL Java_com_swordfish_libretrodroid_LibretroDroid_achievementsUserAgentClause(
+    JNIEnv* env,
+    jclass obj
+) {
+    return env->NewStringUTF(libretrodroid::Achievements::getInstance().userAgentClause().c_str());
+}
+
 JNIEXPORT jlongArray JNICALL Java_com_swordfish_libretrodroid_LibretroDroid_getRuntimeStats(
     JNIEnv* env,
     jclass obj

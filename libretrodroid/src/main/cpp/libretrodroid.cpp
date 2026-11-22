@@ -498,6 +498,7 @@ void LibretroDroid::destroy() {
         Environment::getInstance().getHwContextDestroy()();
     }
 
+    Achievements::getInstance().unload();
     core->retro_unload_game();
     core->retro_deinit();
     frameCount = 0;
@@ -548,6 +549,8 @@ void LibretroDroid::step() {
     }
 
     auto stepStarted = std::chrono::steady_clock::now();
+    Achievements& achievements = Achievements::getInstance();
+    achievements.pump(core.get());
     bool rewound = false;
     if (rewinding && rewind.isEnabled()) {
         rewound = rewind.stepBack([this](const uint8_t* data, size_t size) {
@@ -565,6 +568,7 @@ void LibretroDroid::step() {
         for (size_t i = 0; i < total; i++) {
             runFrame(i == total - 1);
             frameCount++;
+            achievements.doFrame();
             if (rewind.isEnabled()) {
                 rewind.onFrame(core->retro_serialize_size(), [this](uint8_t* data, size_t size) {
                     return serializeInto(data, size);
@@ -759,6 +763,7 @@ void LibretroDroid::reset() {
     std::lock_guard<std::mutex> lock(coreLock);
 
     core->retro_reset();
+    Achievements::getInstance().onReset();
 }
 
 std::pair<int8_t*, size_t> LibretroDroid::serializeState() {
