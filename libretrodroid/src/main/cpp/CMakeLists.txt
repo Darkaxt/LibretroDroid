@@ -60,6 +60,8 @@ add_library(libretrodroid SHARED
         memorymap.cpp
         secondarysurface.h
         secondarysurface.cpp
+        rewind.h
+        rewind.cpp
         input.h
         input.cpp
         shadermanager.h
@@ -104,4 +106,5 @@ target_link_libraries(libretrodroid
                       EGL
                       oboe
                       GLESv3
+                      z
 )

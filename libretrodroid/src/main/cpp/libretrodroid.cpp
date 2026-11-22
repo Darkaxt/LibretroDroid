@@ -15,6 +15,7 @@
  *     along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+#include <chrono>
 #include <jni.h>
 
 #include <EGL/egl.h>
@@ -500,6 +501,9 @@ void LibretroDroid::destroy() {
     core->retro_unload_game();
     core->retro_deinit();
     frameCount = 0;
+    rewind.configure(0, 1);
+    runAheadState.clear();
+    runAheadState.shrink_to_fit();
 
     video = nullptr;
     core = nullptr;
@@ -543,10 +547,33 @@ void LibretroDroid::step() {
         frames = std::min(requestedFrames, 2u);
     }
 
-    for (size_t i = 0; i < frames * frameSpeed; i++) {
-        core->retro_run();
-        frameCount++;
+    auto stepStarted = std::chrono::steady_clock::now();
+    bool rewound = false;
+    if (rewinding && rewind.isEnabled()) {
+        rewound = rewind.stepBack([this](const uint8_t* data, size_t size) {
+            return unserializeFrom(data, size);
+        });
     }
+
+    if (rewound) {
+        // Show the restored state: one silent frame, not captured, not counted.
+        suppressAudio = true;
+        core->retro_run();
+        suppressAudio = false;
+    } else {
+        size_t total = frames * frameSpeed;
+        for (size_t i = 0; i < total; i++) {
+            runFrame(i == total - 1);
+            frameCount++;
+            if (rewind.isEnabled()) {
+                rewind.onFrame(core->retro_serialize_size(), [this](uint8_t* data, size_t size) {
+                    return serializeInto(data, size);
+                });
+            }
+        }
+    }
+    lastStepMicros = (uint64_t) std::chrono::duration_cast<std::chrono::microseconds>(
+        std::chrono::steady_clock::now() - stepStarted).count();
 
     if (video && !video->rendersInVideoCallback()) {
         video->renderFrame();
@@ -589,6 +616,71 @@ void LibretroDroid::step() {
     }
 }
 
+void LibretroDroid::runFrame(bool lastFrame) {
+    runAheadActive = runAheadFrames > 0 && lastFrame && video
+        && !Environment::getInstance().isUseHwAcceleration();
+    if (!runAheadActive) {
+        core->retro_run();
+        return;
+    }
+
+    // Run-ahead: advance the real frame hidden, save it, run the look-ahead frames silently
+    // showing only the last one, then restore the real frame's state.
+    size_t size = core->retro_serialize_size();
+    suppressVideo = true;
+    core->retro_run();
+    runAheadState.resize(size);
+    if (size == 0 || !serializeInto(runAheadState.data(), size)) {
+        // Core cannot save states: present the real frame on the next step instead.
+        suppressVideo = false;
+        runAheadActive = false;
+        return;
+    }
+    suppressAudio = true;
+    for (unsigned i = 0; i < runAheadFrames; i++) {
+        suppressVideo = i + 1 < runAheadFrames;
+        core->retro_run();
+    }
+    suppressVideo = false;
+    suppressAudio = false;
+    unserializeFrom(runAheadState.data(), size);
+}
+
+bool LibretroDroid::serializeInto(uint8_t* data, size_t size) {
+    return core->retro_serialize(data, size);
+}
+
+bool LibretroDroid::unserializeFrom(const uint8_t* data, size_t size) {
+    return core->retro_unserialize(data, size);
+}
+
+void LibretroDroid::setRewind(size_t budgetBytes, unsigned interval) {
+    std::lock_guard<std::mutex> lock(coreLock);
+    rewind.configure(budgetBytes, interval);
+}
+
+void LibretroDroid::setRewinding(bool value) {
+    std::lock_guard<std::mutex> lock(coreLock);
+    rewinding = value;
+}
+
+void LibretroDroid::setRunAhead(unsigned frames) {
+    std::lock_guard<std::mutex> lock(coreLock);
+    runAheadFrames = std::min(frames, 4u);
+}
+
+std::vector<int64_t> LibretroDroid::getRuntimeStats() {
+    std::lock_guard<std::mutex> lock(coreLock);
+    return {
+        (int64_t) rewind.getEntryCount(),
+        (int64_t) rewind.getUsedBytes(),
+        (int64_t) rewind.getLastCaptureMicros(),
+        (int64_t) lastStepMicros,
+        (int64_t) (runAheadActive ? runAheadFrames : 0),
+        (int64_t) (rewinding ? 1 : 0),
+    };
+}
+
 float LibretroDroid::getAspectRatio() {
     float gameAspectRatio = Environment::getInstance().retrieveGameSpecificAspectRatio();
     return gameAspectRatio > 0 ? gameAspectRatio : defaultAspectRatio;
@@ -628,7 +720,7 @@ void LibretroDroid::handleVideoRefresh(
     unsigned int height,
     size_t pitch
 ) {
-    if (video) {
+    if (video && !suppressVideo) {
         video->onNewFrame(data, width, height, pitch);
 
         if (video->rendersInVideoCallback()) {
@@ -638,7 +730,7 @@ void LibretroDroid::handleVideoRefresh(
 }
 
 size_t LibretroDroid::handleAudioCallback(const int16_t *data, size_t frames) {
-    if (audio && audioEnabled) {
+    if (audio && audioEnabled && !suppressAudio) {
         audio->write(data, frames);
     }
     return frames;

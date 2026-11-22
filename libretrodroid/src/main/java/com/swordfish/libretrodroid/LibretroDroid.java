@@ -169,6 +169,21 @@ public class LibretroDroid {
     /** Number of retro_run() calls since the game was loaded. */
     public static native long getFrameCount();
 
+    /** Rewind ring of budgetBytes (0 disables and frees it), capturing every interval frames. */
+    public static native void setRewind(long budgetBytes, int interval);
+
+    /** While true, each emulated step loads the previous captured state instead of advancing. */
+    public static native void setRewinding(boolean rewinding);
+
+    /** Hidden frames run ahead of the displayed one (0-4, 0 disables). Ignored for HW-rendered cores. */
+    public static native void setRunAhead(int frames);
+
+    /**
+     * [rewind entries, rewind bytes, last capture us, last step us, run-ahead frames in effect,
+     * rewinding 0/1].
+     */
+    public static native long[] getRuntimeStats();
+
     public static native Controller[][] getControllers();
     public static native void setControllerType(int port, int type);
 }

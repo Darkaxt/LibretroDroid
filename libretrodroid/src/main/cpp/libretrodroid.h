@@ -38,6 +38,7 @@
 #include "fpssync.h"
 #include "input.h"
 #include "rumble.h"
+#include "rewind.h"
 #include "secondarysurface.h"
 #include "shadermanager.h"
 #include "utils/javautils.h"
@@ -120,6 +121,18 @@ public:
     /** Touch on the secondary surface, normalized 0..1; negative values release the pointer. */
     void onSecondaryTouchEvent(float x, float y);
 
+    /** Rewind ring of budgetBytes (0 disables and frees it), capturing every interval frames. Any thread. */
+    void setRewind(size_t budgetBytes, unsigned interval);
+    /** While true, each step loads the previous captured state instead of advancing. Any thread. */
+    void setRewinding(bool rewinding);
+    /** Hidden frames run ahead of the displayed one (0 disables). Ignored for HW-rendered cores. */
+    void setRunAhead(unsigned frames);
+    /**
+     * Runtime stats: rewind entries, rewind bytes, last capture us, last step us (emulation only),
+     * run-ahead frames in effect, rewinding (0/1).
+     */
+    std::vector<int64_t> getRuntimeStats();
+
     void refreshAspectRatio();
     float getAspectRatio();
 
@@ -192,6 +205,19 @@ private:
     bool dirtyVideo = false;
 
     std::mutex coreLock;
+
+    Rewind rewind;
+    bool rewinding = false;
+    unsigned runAheadFrames = 0;
+    bool runAheadActive = false;
+    bool suppressVideo = false;
+    bool suppressAudio = false;
+    std::vector<uint8_t> runAheadState;
+    uint64_t lastStepMicros = 0;
+
+    void runFrame(bool lastFrame);
+    bool serializeInto(uint8_t* data, size_t size);
+    bool unserializeFrom(const uint8_t* data, size_t size);
 
     std::unique_ptr<Core> core;
     std::unique_ptr<Audio> audio;
