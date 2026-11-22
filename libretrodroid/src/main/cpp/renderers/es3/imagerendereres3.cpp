@@ -61,6 +61,9 @@ void ImageRendererES3::initializeTextures(unsigned int width, unsigned int heigh
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, shaders.linearTexture ? GL_LINEAR : GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    // One level only: librashader binds mipmap-filtered samplers, which sample an incomplete
+    // (black) texture unless the level range is limited to the level that exists.
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL, 0);
 
     if (swapRedAndBlueChannels) {
         applyGLSwizzle(GL_BLUE, GL_GREEN, GL_RED, GL_ALPHA);
