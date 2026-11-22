@@ -173,7 +173,28 @@ JNIEXPORT jboolean JNICALL LibretroDroid::unserializeSRAM(int8_t* data, size_t s
     return true;
 }
 
-size_t LibretroDroid::readMemory(size_t address, uint8_t* dest, size_t length) {
+namespace {
+
+// RetroArch's READ_CORE_MEMORY view of a core without a memory map: SYSTEM_RAM at bus address 0
+// and SAVE_RAM straight after it (command.c command_memory_core_blocks).
+std::vector<libretrodroid::MemoryMap::Region> fallbackBlocks(Core* core) {
+    std::vector<libretrodroid::MemoryMap::Region> blocks;
+    auto* ram = static_cast<uint8_t*>(core->retro_get_memory_data(RETRO_MEMORY_SYSTEM_RAM));
+    size_t ramSize = core->retro_get_memory_size(RETRO_MEMORY_SYSTEM_RAM);
+    if (ram == nullptr || ramSize == 0) ramSize = 0;
+    else blocks.push_back({ RETRO_MEMDESC_SYSTEM_RAM, ram, 0, 0, 0, 0, ramSize });
+
+    auto* save = static_cast<uint8_t*>(core->retro_get_memory_data(RETRO_MEMORY_SAVE_RAM));
+    size_t saveSize = core->retro_get_memory_size(RETRO_MEMORY_SAVE_RAM);
+    if (save != nullptr && saveSize != 0) {
+        blocks.push_back({ RETRO_MEMDESC_SAVE_RAM, save, 0, ramSize, 0, 0, saveSize });
+    }
+    return blocks;
+}
+
+}
+
+size_t LibretroDroid::readMemory(uint32_t address, uint8_t* dest, size_t length) {
     std::lock_guard<std::mutex> lock(coreLock);
     if (core == nullptr) return 0;
 
@@ -182,13 +203,17 @@ size_t LibretroDroid::readMemory(size_t address, uint8_t* dest, size_t length) {
         return map.read(address, dest, length);
     }
 
-    // Cores without a memory map: expose SYSTEM_RAM at bus address 0.
-    auto* ram = static_cast<uint8_t*>(core->retro_get_memory_data(RETRO_MEMORY_SYSTEM_RAM));
-    size_t size = core->retro_get_memory_size(RETRO_MEMORY_SYSTEM_RAM);
-    if (ram == nullptr || address >= size) return 0;
-    size_t count = std::min(length, size - address);
-    std::memcpy(dest, ram + address, count);
-    return count;
+    auto blocks = fallbackBlocks(core.get());
+    size_t copied = 0;
+    while (copied < length) {
+        size_t offset = 0;
+        const auto* block = libretrodroid::MemoryMap::find(blocks, (uint32_t) (address + copied), &offset);
+        if (block == nullptr) break;
+        size_t chunk = std::min(length - copied, block->len - offset);
+        std::memcpy(dest + copied, block->ptr + offset, chunk);
+        copied += chunk;
+    }
+    return copied;
 }
 
 std::vector<libretrodroid::MemoryMap::Region> LibretroDroid::getMemoryRegions() {
@@ -197,11 +222,7 @@ std::vector<libretrodroid::MemoryMap::Region> LibretroDroid::getMemoryRegions() 
 
     const libretrodroid::MemoryMap& map = Environment::getInstance().getMemoryMap();
     if (map.hasDescriptors()) return map.getRegions();
-
-    auto* ram = static_cast<uint8_t*>(core->retro_get_memory_data(RETRO_MEMORY_SYSTEM_RAM));
-    size_t size = core->retro_get_memory_size(RETRO_MEMORY_SYSTEM_RAM);
-    if (ram == nullptr || size == 0) return {};
-    return { libretrodroid::MemoryMap::Region { RETRO_MEMDESC_SYSTEM_RAM, ram, 0, 0, size } };
+    return fallbackBlocks(core.get());
 }
 
 uint64_t LibretroDroid::getFrameCount() {
@@ -255,6 +276,8 @@ void LibretroDroid::onSurfaceCreated() {
     );
 
     video = std::unique_ptr<Video>(newVideo);
+    video->updateCrop(frameCrop.x0, frameCrop.y0, frameCrop.x1, frameCrop.y1);
+    secondarySurface.onContextLost();
 
     if (Environment::getInstance().getHwContextReset() != nullptr) {
         Environment::getInstance().getHwContextReset()();
@@ -279,6 +302,29 @@ void LibretroDroid::onTouchEvent(float xAxis, float yAxis) {
         auto [x, y] = video->getLayout().getRelativePosition(xAxis, yAxis);
         input->onMotionEvent(0, Input::MOTION_SOURCE_POINTER, x, y);
     }
+}
+
+void LibretroDroid::setFrameCrop(float x0, float y0, float x1, float y1) {
+    frameCrop = SecondarySurface::Crop { x0, y0, x1, y1 };
+    if (video) video->updateCrop(x0, y0, x1, y1);
+}
+
+void LibretroDroid::setSecondaryWindow(ANativeWindow* window) {
+    secondarySurface.setWindow(window);
+}
+
+void LibretroDroid::setSecondaryCrop(float x0, float y0, float x1, float y1) {
+    secondarySurface.setCrop(SecondarySurface::Crop { x0, y0, x1, y1 });
+}
+
+void LibretroDroid::onSecondaryTouchEvent(float x, float y) {
+    if (!input) return;
+    if (x < 0 || y < 0) {
+        input->onMotionEvent(0, Input::MOTION_SOURCE_POINTER, -10.0F, -10.0F);
+        return;
+    }
+    auto [frameX, frameY] = secondarySurface.toFramePosition(x, y);
+    input->onMotionEvent(0, Input::MOTION_SOURCE_POINTER, frameX, frameY);
 }
 
 void LibretroDroid::onKeyEvent(unsigned int port, int action, int keyCode) {
@@ -483,7 +529,9 @@ void LibretroDroid::pause() {
 }
 
 void LibretroDroid::step() {
-    std::lock_guard<std::mutex> lock(coreLock);
+    // The core lock covers emulation and frame-state updates only. Frame pacing runs after the
+    // lock is released so between-frame readers (readMemory) never wait for the pacing sleep.
+    std::unique_lock<std::mutex> lock(coreLock);
 
     LOGD("Stepping into retro_run()");
 
@@ -504,8 +552,12 @@ void LibretroDroid::step() {
         video->renderFrame();
     }
 
-    if (fpsSync) {
-        fpsSync->wait();
+    if (video) {
+        secondarySurface.render(
+            video->getFrameTexture(),
+            Environment::getInstance().isBottomLeftOrigin(),
+            getAspectRatio()
+        );
     }
 
     if (rumble && rumbleEnabled) {
@@ -528,6 +580,12 @@ void LibretroDroid::step() {
         Environment::getInstance().clearScreenRotationUpdated();
 
         video->updateRotation(Environment::getInstance().getScreenRotation());
+    }
+
+    lock.unlock();
+
+    if (fpsSync) {
+        fpsSync->wait();
     }
 }
 

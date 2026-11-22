@@ -58,6 +58,8 @@ add_library(libretrodroid SHARED
         environment.cpp
         memorymap.h
         memorymap.cpp
+        secondarysurface.h
+        secondarysurface.cpp
         input.h
         input.cpp
         shadermanager.h

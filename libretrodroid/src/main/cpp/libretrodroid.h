@@ -38,6 +38,7 @@
 #include "fpssync.h"
 #include "input.h"
 #include "rumble.h"
+#include "secondarysurface.h"
 #include "shadermanager.h"
 #include "utils/javautils.h"
 #include "environment.h"
@@ -71,7 +72,7 @@ public:
     std::pair<int8_t*, size_t> serializeState();
     bool unserializeState(int8_t *data, size_t size);
 
-    size_t readMemory(size_t address, uint8_t* dest, size_t length);
+    size_t readMemory(uint32_t address, uint8_t* dest, size_t length);
     std::vector<libretrodroid::MemoryMap::Region> getMemoryRegions();
     uint64_t getFrameCount();
 
@@ -110,6 +111,14 @@ public:
     void onKeyEvent(unsigned int port, int action, int keyCode);
     void onMotionEvent(unsigned int port, unsigned int source, float xAxis, float yAxis);
     void onTouchEvent(float xAxis, float yAxis);
+
+    /** Primary display shows only this frame region (image space, y downwards). GL thread. */
+    void setFrameCrop(float x0, float y0, float x1, float y1);
+    /** Secondary surface (nullptr detaches) showing the given frame region. Any thread. */
+    void setSecondaryWindow(ANativeWindow* window);
+    void setSecondaryCrop(float x0, float y0, float x1, float y1);
+    /** Touch on the secondary surface, normalized 0..1; negative values release the pointer. */
+    void onSecondaryTouchEvent(float x, float y);
 
     void refreshAspectRatio();
     float getAspectRatio();
@@ -187,6 +196,8 @@ private:
     std::unique_ptr<Core> core;
     std::unique_ptr<Audio> audio;
     std::unique_ptr<Video> video;
+    SecondarySurface secondarySurface;
+    SecondarySurface::Crop frameCrop;
     std::unique_ptr<FPSSync> fpsSync;
     std::unique_ptr<Input> input;
     std::unique_ptr<Rumble> rumble;

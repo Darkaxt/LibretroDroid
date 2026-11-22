@@ -140,14 +140,31 @@ public class LibretroDroid {
     public static native void refreshAspectRatio();
 
     /**
-     * Copies core memory at a 32-bit bus address (RETRO_ENVIRONMENT_SET_MEMORY_MAPS semantics, or
-     * SYSTEM_RAM at address 0 for cores without a map). Runs between frames under the core lock.
+     * Copies core memory at a 32-bit bus address with RetroArch READ_CORE_MEMORY semantics
+     * (preprocessed RETRO_ENVIRONMENT_SET_MEMORY_MAPS descriptors; for cores without a map,
+     * SYSTEM_RAM at address 0 followed by SAVE_RAM). Runs between frames under the core lock.
      * Returns the number of bytes copied (stops at the first unmapped byte), or -1 for invalid arguments.
      */
     public static native int readMemory(long address, byte[] dest, int offset, int length);
 
-    /** Flattened (start, length, flags) triples describing readable memory regions. */
+    /** Flattened (start, select, disconnect, length, flags, hasData) tuples, after RetroArch preprocessing. */
     public static native long[] getMemoryRegions();
+
+    /** Primary display shows only this frame region (0..1, y downwards). Call on the GL thread. */
+    public static native void setFrameCrop(float x0, float y0, float x1, float y1);
+
+    /**
+     * Presents a frame region on a second Surface (e.g. a Presentation on another display),
+     * drawn on the GL thread after each frame. Pass null before the Surface is destroyed; when the
+     * call returns the runtime no longer uses it.
+     */
+    public static native void setSecondarySurface(android.view.Surface surface);
+
+    /** Frame region shown on the secondary surface (0..1, y downwards). */
+    public static native void setSecondaryCrop(float x0, float y0, float x1, float y1);
+
+    /** Touch on the secondary surface, normalized 0..1; negative values release the pointer. */
+    public static native void onSecondaryTouchEvent(float x, float y);
 
     /** Number of retro_run() calls since the game was loaded. */
     public static native long getFrameCount();

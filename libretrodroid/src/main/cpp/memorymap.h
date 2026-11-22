@@ -29,8 +29,11 @@ namespace libretrodroid {
 /**
  * Bus-address view of core memory, built from RETRO_ENVIRONMENT_SET_MEMORY_MAPS.
  *
- * Stage-1 scope: each descriptor maps its primary range [start, start + len) linearly onto
- * ptr + offset. RetroArch's select/disconnect mirror preprocessing is tracked as deferral D-MEM-1.
+ * Semantics follow RetroArch so DualDex sees the same bytes as RetroArch's READ_CORE_MEMORY:
+ * descriptors are preprocessed like runloop.c mmap_preprocess_descriptors (select/disconnect
+ * derivation, including its early stop on a non-power-of-two length), and lookups follow command.c
+ * command_memory_get_descriptor (first match in descriptor order, select matching, disconnect-bit
+ * removal, 32-bit address arithmetic).
  * Not thread-safe on its own: callers serialize access with the core lock.
  */
 class MemoryMap {
@@ -40,6 +43,8 @@ public:
         uint8_t* ptr;
         size_t offset;
         size_t start;
+        size_t select;
+        size_t disconnect;
         size_t len;
     };
 
@@ -49,16 +54,25 @@ public:
     bool hasDescriptors() const { return !regions.empty(); }
     const std::vector<Region>& getRegions() const { return regions; }
 
+    /** False when RetroArch's preprocessing stopped early; later descriptors keep select 0. */
+    bool isFullyPreprocessed() const { return preprocessed; }
+
     /**
-     * Copies up to length bytes starting at the bus address into dest. Reads stop at the first
-     * unmapped byte. Returns the number of bytes copied (0 when the start address is unmapped).
+     * Copies up to length bytes starting at the bus address into dest, continuing into the
+     * descriptor that maps the next address like READ_CORE_MEMORY. Reads stop at the first
+     * unmapped byte or a descriptor without data. Returns the number of bytes copied.
      */
-    size_t read(size_t address, uint8_t* dest, size_t length) const;
+    size_t read(uint32_t address, uint8_t* dest, size_t length) const;
+
+    /** RetroArch's descriptor preprocessing, applied in place. Exposed for unit tests. */
+    static bool preprocess(std::vector<Region>& regions);
+
+    /** Returns the descriptor serving the address and the offset within it, or nullptr. */
+    static const Region* find(const std::vector<Region>& regions, uint32_t address, size_t* offset);
 
 private:
-    const Region* find(size_t address) const;
-
     std::vector<Region> regions;
+    bool preprocessed = false;
 };
 
 }

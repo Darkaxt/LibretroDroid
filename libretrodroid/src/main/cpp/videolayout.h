@@ -42,6 +42,9 @@ public:
 
     void updateRotation(float rotation);
 
+    /** Shows only this region of the frame (image space, y downwards; default: whole frame). */
+    void updateCrop(float x0, float y0, float x1, float y1);
+
     std::array<float, 12>& getForegroundVertices() { return foregroundVertices; }
     std::array<float, 12>& getBackgroundVertices() { return backgroundVertices; }
     std::array<float, 12>& getFramebufferVertices() { return framebufferVertices; }
@@ -63,6 +66,8 @@ private:
 
     void updateRelativeForegroundBounds();
 
+    void updateTextureCoordinates();
+
 private:
     std::array<float, 12> foregroundVertices = {
         -1.0F,
@@ -83,6 +88,11 @@ private:
         +1.0F,
         +1.0F,
     };
+
+    float cropX0 = 0.0F;
+    float cropY0 = 0.0F;
+    float cropX1 = 1.0F;
+    float cropY1 = 1.0F;
 
     std::array<float, 12> textureCoordinates {
         0.0F,

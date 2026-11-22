@@ -30,6 +30,7 @@ VideoLayout::VideoLayout(bool bottomLeftOrigin, float rotation, Rect viewportRec
 }
 
 void VideoLayout::updateBuffers() {
+    updateTextureCoordinates();
     updateForegroundVertices();
     updateBackgroundVertices();
     updateRelativeForegroundBounds();
@@ -50,7 +51,7 @@ void VideoLayout::updateForegroundVertices() {
     float screenW = screenWidth * viewportRect.getWidth();
     float screenH = screenHeight * viewportRect.getHeight();
     float screenAspect = screenW / screenH;
-    float contentAspect = aspectRatio;
+    float contentAspect = aspectRatio * (cropX1 - cropX0) / (cropY1 - cropY0);
 
     float scaleX = viewportRect.getWidth();
     float scaleY = viewportRect.getHeight();
@@ -223,8 +224,8 @@ std::pair<float, float> VideoLayout::getRelativePosition(float touchX, float tou
         return {-10.0f, -10.0f};
     }
 
-    float relativeX = (touchX - xMin) / (xMax - xMin);
-    float relativeY = (touchY - yMin) / (yMax - yMin);
+    float relativeX = cropX0 + (cropX1 - cropX0) * (touchX - xMin) / (xMax - xMin);
+    float relativeY = cropY0 + (cropY1 - cropY0) * (touchY - yMin) / (yMax - yMin);
 
     LOGD("Computed relative touch position: %.2f, %.2f", relativeX, relativeY);
 
@@ -256,6 +257,27 @@ void VideoLayout::updateRelativeForegroundBounds() {
         relativeForegroundBounds[2],
         relativeForegroundBounds[3]
     );
+}
+
+void VideoLayout::updateCrop(float x0, float y0, float x1, float y1) {
+    if (!(x1 > x0) || !(y1 > y0)) return;
+    cropX0 = x0;
+    cropY0 = y0;
+    cropX1 = x1;
+    cropY1 = y1;
+    updateBuffers();
+}
+
+void VideoLayout::updateTextureCoordinates() {
+    // Texture v follows image rows for software frames; hardware frames are stored bottom-up.
+    float v0 = bottomLeftOrigin ? 1.0F - cropY1 : cropY0;
+    float v1 = bottomLeftOrigin ? 1.0F - cropY0 : cropY1;
+    for (size_t i = 0; i < textureCoordinates.size(); i += 2) {
+        bool right = (i == 4 || i == 6 || i == 10);
+        bool far = (i == 2 || i == 8 || i == 10);
+        textureCoordinates[i] = right ? cropX1 : cropX0;
+        textureCoordinates[i + 1] = far ? v1 : v0;
+    }
 }
 
 }

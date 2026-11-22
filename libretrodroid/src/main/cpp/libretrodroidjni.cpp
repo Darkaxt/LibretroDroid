@@ -18,6 +18,7 @@
 #include <jni.h>
 
 #include <EGL/egl.h>
+#include <android/native_window_jni.h>
 
 #include <memory>
 #include <string>
@@ -330,6 +331,47 @@ JNIEXPORT void JNICALL Java_com_swordfish_libretrodroid_LibretroDroid_onTouchEve
     LibretroDroid::getInstance().onTouchEvent(xAxis, yAxis);
 }
 
+JNIEXPORT void JNICALL Java_com_swordfish_libretrodroid_LibretroDroid_setFrameCrop(
+    JNIEnv* env,
+    jclass obj,
+    jfloat x0,
+    jfloat y0,
+    jfloat x1,
+    jfloat y1
+) {
+    LibretroDroid::getInstance().setFrameCrop(x0, y0, x1, y1);
+}
+
+JNIEXPORT void JNICALL Java_com_swordfish_libretrodroid_LibretroDroid_setSecondarySurface(
+    JNIEnv* env,
+    jclass obj,
+    jobject surface
+) {
+    ANativeWindow* window = surface != nullptr ? ANativeWindow_fromSurface(env, surface) : nullptr;
+    LibretroDroid::getInstance().setSecondaryWindow(window);
+    if (window != nullptr) ANativeWindow_release(window); // SecondarySurface holds its own reference
+}
+
+JNIEXPORT void JNICALL Java_com_swordfish_libretrodroid_LibretroDroid_setSecondaryCrop(
+    JNIEnv* env,
+    jclass obj,
+    jfloat x0,
+    jfloat y0,
+    jfloat x1,
+    jfloat y1
+) {
+    LibretroDroid::getInstance().setSecondaryCrop(x0, y0, x1, y1);
+}
+
+JNIEXPORT void JNICALL Java_com_swordfish_libretrodroid_LibretroDroid_onSecondaryTouchEvent(
+    JNIEnv* env,
+    jclass obj,
+    jfloat x,
+    jfloat y
+) {
+    LibretroDroid::getInstance().onSecondaryTouchEvent(x, y);
+}
+
 JNIEXPORT void JNICALL Java_com_swordfish_libretrodroid_LibretroDroid_onKeyEvent(
     JNIEnv* env,
     jclass obj,
@@ -615,13 +657,13 @@ JNIEXPORT jint JNICALL Java_com_swordfish_libretrodroid_LibretroDroid_readMemory
     jint length
 ) {
     jsize capacity = env->GetArrayLength(dest);
-    if (address < 0 || offset < 0 || length < 0 || offset > capacity || length > capacity - offset) {
+    if (address < 0 || address > 0xFFFFFFFFLL || offset < 0 || length < 0 || offset > capacity || length > capacity - offset) {
         return -1;
     }
     if (length == 0) return 0;
 
     std::vector<uint8_t> buffer(length);
-    size_t copied = LibretroDroid::getInstance().readMemory((size_t) address, buffer.data(), length);
+    size_t copied = LibretroDroid::getInstance().readMemory((uint32_t) address, buffer.data(), length);
     if (copied > 0) {
         env->SetByteArrayRegion(dest, offset, (jsize) copied, (const jbyte*) buffer.data());
     }
@@ -634,11 +676,14 @@ JNIEXPORT jlongArray JNICALL Java_com_swordfish_libretrodroid_LibretroDroid_getM
 ) {
     auto regions = LibretroDroid::getInstance().getMemoryRegions();
     std::vector<jlong> values;
-    values.reserve(regions.size() * 3);
+    values.reserve(regions.size() * 6);
     for (const auto& region : regions) {
         values.push_back((jlong) region.start);
+        values.push_back((jlong) region.select);
+        values.push_back((jlong) region.disconnect);
         values.push_back((jlong) region.len);
         values.push_back((jlong) region.flags);
+        values.push_back(region.ptr != nullptr ? 1 : 0);
     }
     jlongArray result = env->NewLongArray((jsize) values.size());
     env->SetLongArrayRegion(result, 0, (jsize) values.size(), values.data());

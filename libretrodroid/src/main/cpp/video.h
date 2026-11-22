@@ -74,6 +74,10 @@ public:
     void updateRendererSize(unsigned width, unsigned height);
     void updateRotation(float rotation);
     void updateShaderType(ShaderManager::Config shaderConfig);
+    void updateCrop(float x0, float y0, float x1, float y1) { videoLayout.updateCrop(x0, y0, x1, y1); }
+
+    /** Texture holding the latest core frame (software upload or hardware framebuffer). */
+    GLuint getFrameTexture() { return (GLuint) renderer->getTexture(); }
 
     void renderFrame();
 

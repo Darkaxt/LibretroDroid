@@ -130,6 +130,11 @@ class GLRetroView(
         queueEvent { LibretroDroid.onKeyEvent(port, action, keyCode) }
     }
 
+    /** Shows only this region of the core frame (0..1, y downwards), e.g. a DS top screen. */
+    fun setFrameCrop(x0: Float, y0: Float, x1: Float, y1: Float) {
+        queueEvent { LibretroDroid.setFrameCrop(x0, y0, x1, y1) }
+    }
+
     fun sendMotionEvent(source: Int, xAxis: Float, yAxis: Float, port: Int = 0) {
         queueEvent { LibretroDroid.onMotionEvent(port, source, xAxis, yAxis) }
     }
