@@ -130,7 +130,7 @@ public:
     void setRunAhead(unsigned frames);
     /**
      * Runtime stats: rewind entries, rewind bytes, last capture us, last step us (emulation only),
-     * run-ahead frames in effect, rewinding (0/1).
+     * run-ahead frames in effect, rewinding (0/1), last rewind encode us (worker thread).
      */
     std::vector<int64_t> getRuntimeStats();
 

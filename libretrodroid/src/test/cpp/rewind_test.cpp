@@ -60,6 +60,7 @@ int main() {
     r.configure(1 << 20, 1);
     std::vector<uint8_t> a(64, 1), b(128, 2);
     for (int i = 0; i < 5; i++) r.onFrame(a.size(), [&](uint8_t* d, size_t n) { std::memcpy(d, a.data(), n); return true; });
+    r.waitIdle();
     CHECK(r.getEntryCount() == 4);
     r.onFrame(b.size(), [&](uint8_t* d, size_t n) { std::memcpy(d, b.data(), n); return true; });
     CHECK(r.getEntryCount() == 0);

@@ -19,7 +19,7 @@ run() {
     printf '%s' "$out" | grep -q '"phase":"COMPLETED"'
 }
 
-run "Compile Rewind host test" "$gxx" -std=c++17 -O2 -Wall -Wextra \
+run "Compile Rewind host test" "$gxx" -std=c++17 -O2 -Wall -Wextra -pthread \
     -Izlibstub -I../../main/cpp \
     rewind_test.cpp ../../main/cpp/rewind.cpp -o "$scratch/rewind_test.exe"
 run "Run Rewind host test" "$scratch/rewind_test.exe"

@@ -682,6 +682,7 @@ std::vector<int64_t> LibretroDroid::getRuntimeStats() {
         (int64_t) lastStepMicros,
         (int64_t) (runAheadActive ? runAheadFrames : 0),
         (int64_t) (rewinding ? 1 : 0),
+        (int64_t) rewind.getLastEncodeMicros(),
     };
 }
 

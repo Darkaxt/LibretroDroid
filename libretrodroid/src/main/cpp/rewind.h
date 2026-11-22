@@ -20,9 +20,12 @@
 #define LIBRETRODROID_REWIND_H
 
 #include <cstddef>
+#include <condition_variable>
 #include <cstdint>
 #include <deque>
 #include <functional>
+#include <mutex>
+#include <thread>
 #include <vector>
 
 namespace libretrodroid {
@@ -35,8 +38,17 @@ namespace libretrodroid {
  *
  * Not thread-safe: used only from the emulation (GL) thread under the core lock.
  */
+/**
+ * Rewind ring of compressed sparse XOR deltas. The emulation thread only serializes the core into
+ * a handoff buffer; a worker thread diffs it against the previous capture and compresses it.
+ */
 class Rewind {
 public:
+    Rewind() = default;
+    ~Rewind();
+    Rewind(const Rewind&) = delete;
+    Rewind& operator=(const Rewind&) = delete;
+
     using Serialize = std::function<bool(uint8_t* data, size_t size)>;
     using Unserialize = std::function<bool(const uint8_t* data, size_t size)>;
 
@@ -51,9 +63,15 @@ public:
     /** Loads the previous captured state. Returns false when nothing is left to rewind. */
     bool stepBack(const Unserialize& unserialize);
 
-    size_t getEntryCount() const { return deltas.size(); }
-    size_t getUsedBytes() const { return used; }
+    /** Blocks until the worker has stored the last capture. */
+    void waitIdle();
+
+    size_t getEntryCount();
+    size_t getUsedBytes();
+    /** Emulation-thread cost of the last capture (serialization). */
     uint64_t getLastCaptureMicros() const { return lastCaptureMicros; }
+    /** Worker cost of the last capture (diff + compression). */
+    uint64_t getLastEncodeMicros();
 
 private:
     size_t budget = 0;
@@ -66,15 +84,29 @@ private:
     };
 
     bool capture(std::vector<uint64_t>& target, const Serialize& serialize);
+    void startWorker();
+    void stopWorker();
+    void workerLoop();
+    void encode(); // worker, lock not held: incoming -> delta, then current.swap(incoming)
+    void waitIdleLocked(std::unique_lock<std::mutex>& lock);
+    void clearLocked();
 
     size_t stateSize = 0;
     std::vector<uint64_t> current;
-    std::vector<uint64_t> scratch;
+    std::vector<uint64_t> incoming;
     std::vector<uint64_t> sparse;
     std::vector<uint8_t> packed;
     std::deque<Delta> deltas;
     size_t used = 0;
     uint64_t lastCaptureMicros = 0;
+    uint64_t lastEncodeMicros = 0;
+
+    std::mutex lock;
+    std::condition_variable wake;
+    std::condition_variable idle;
+    std::thread worker;
+    bool busy = false;   // incoming holds a capture the worker has not stored yet
+    bool stopping = false;
 };
 
 }

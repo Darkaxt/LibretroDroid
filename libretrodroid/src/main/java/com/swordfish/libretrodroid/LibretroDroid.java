@@ -180,7 +180,7 @@ public class LibretroDroid {
 
     /**
      * [rewind entries, rewind bytes, last capture us, last step us, run-ahead frames in effect,
-     * rewinding 0/1].
+     * rewinding 0/1, last rewind encode us (worker thread)].
      */
     public static native long[] getRuntimeStats();
 
